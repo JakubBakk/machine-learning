@@ -1,0 +1,96 @@
+---
+title: "bak_lab10"
+author: "Jakub Bąk"
+date: "10 01 2021"
+output: html_document
+---
+
+Zadania na 10 laboratorium
+==========================
+
+Zadanie 1. Wczytaj w RStudio plik z danymi nasiona.RData (funkcja load).
+
+```{r}
+load("./data/nasiona.RData")
+```
+
+Zadadnie 2. Przyglądnij się danym i wybierz zmienne do analizy.
+
+Po przygladnieciu sie danym postanowilem usunac wiersze o id
+- 164,165,184, poniewaz ich wartosc przekraczala trzykrotnosc odchylenia standardowego od sredniej wartosci w kolumnie "zwiezlosc"
+- 214,219, poniewaz ich wartosc przekraczala trzykrotnosc odchylenia standardowego od sredniej wartosci w kolumnie "wspolczynnik_asymetrii"
+
+```{r}
+df <- nasiona
+df <- df[-c(154,155,169,197,201),]
+```
+
+Note: Numer wiersza rozni sie od id w pliku
+
+Zadanie 3. Dokonaj standaryzacji zmiennych i wyświetl podsumowanie dla utworzonej ramki danych.
+
+```{r}
+df <- scale(df)
+summary(df)
+```
+
+Zadanie 4. Określ miarę podobieństwa między grupowanymi obiektami.
+
+```{r}
+res.dist <- dist(df, method="euclidean")
+as.matrix(res.dist)[1:7, 1:7]
+```
+
+Zadanie 5. Dokonaj grupowania hierarchicznego za pomocą funkcji hclust. Jako metodę mierzenia odległości między skupieniami wybierz "ward.D2".
+
+```{r}
+df_cluster <- hclust(res.dist, method="ward.D2")
+```
+
+Zadanie 6. Narysuj dendrogram
+
+```{r}
+plot(df_cluster)
+library(dplyr)
+```
+
+Zadanie 7. Ustaw przecięcie dendrogramu jako k=5, a następnie zaznacz na dendrogramie grupy.
+
+```{r}
+##rect.hclust(df_cluster, k=5, border="blue")
+##Z jakiegos powodu mam problem z wyswietleniem tego, mimo ze w skrypcie wszystka dziala bez szwanku. Otrzymuje komunikat "plot.new has not been called yet"
+```
+
+Zadanie 8. Dodaj nr grupy jako nową zmienną do ramki danych
+
+```{r}
+groups <- cutree(df_cluster, k=5)
+df <- cbind(df, groups)
+df <- as.data.frame(df)
+```
+
+Zadanie 9. Utwórz tabele z podsumowaniem wyników: 1.Wartości średnie atrybutów w grupach 2.Liczebności utworzonych grup
+
+```{r}
+
+##podsumowanie
+summary(subset(df, groups == 1))[4,1:7]
+summary(subset(df, groups == 2))[4,1:7]
+summary(subset(df, groups == 3))[4,1:7]
+summary(subset(df, groups == 4))[4,1:7]
+summary(subset(df, groups == 5))[4,1:7]
+
+##liczebnosci grup
+nrow(filter(df, groups == 1))
+nrow(filter(df, groups == 2))
+nrow(filter(df, groups == 3))
+nrow(filter(df, groups == 4))
+nrow(filter(df, groups == 5))
+```
+
+Zadanie 10. Narysuj wykres zależności powierzchni (oś x) od obwodu (oś y), zaznaczając kolorami utworzone grupy.
+
+```{r}
+plot(df$powierzchnia~df$obwod, df, col=groups)
+```
+

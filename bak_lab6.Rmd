@@ -1,0 +1,111 @@
+---
+title: "Untitled"
+author: "Jakub Bąk"
+date: "29 11 2020"
+output: html_document
+---
+
+Zadania na szóste laboratorium
+==============================
+
+Zadanie 1. Dla danych z lab 5 dokonaj klasyfikacji za pomocą trzech algorytmów złożonych: bagging, random forest oraz boosting (zbuduj modele na zbiorze treningowym)
+
+```{r}
+drzewo <- read.csv("./data/Movie_classification.csv", sep=",", header=TRUE, nrow=510, dec = ".", na.strings = " ")
+drzewo$X3D_available <- as.factor(drzewo$X3D_available)
+drzewo$Genre <- as.factor(drzewo$Genre)
+library(dplyr)
+
+drzewo %>%
+  filter(!complete.cases(drzewo))
+
+mean_Time_taken <- mean(drzewo$Time_taken, na.rm=TRUE)
+drzewo$Time_taken[is.na(drzewo$Time_taken)] <- mean_Time_taken
+
+library(dummies)
+new_drzewo <- dummy.data.frame(drzewo, names=c("X3D_available","Genre"))
+for(i in 1:ncol(new_drzewo)){
+  new_drzewo[,i] <- as.numeric(new_drzewo[,i])
+}
+
+library(caTools)
+set.seed(312)
+drzewo_split <- sample.split(new_drzewo$Start_Tech_Oscar, SplitRatio = 0.7)
+training_data <- subset(new_drzewo, drzewo_split == TRUE)
+testing_data <- subset(new_drzewo, drzewo_split == FALSE)
+
+library(ipred)
+model_1 <- bagging(training_data$Start_Tech_Oscar~.,data=training_data, nbagg=10, method=c("standard"), coob=TRUE, subset = c(sample(1:354, 354)))
+
+library(randomForest)
+model_2 <- randomForest(training_data$Start_Tech_Oscar~.,data=training_data, ntree=15, importance=TRUE, mtry=6, subset = c(sample(1:354, 354)))
+
+library(adabag)
+##model_3 <- boosting(training_data$Start_Tech_Oscar~.,data=training_data, boos=TRUE, mfinal=10, subset=c(sample(1:354,354)))
+```
+
+Note: Z jakiegos powodu funkacja 'boosting' z biblioteki 'adabag' oraz inne podobne rozwiazania w ogole nie chcialy dzialac, dlatego bylem zmuszony wyhaszowac linijki kodu z nim zwiazane
+
+Zadanie 2. Sprawdź działanie utworzonych modeli na danych testowych. Wyniki predykcji zapisz w odpowiednich kolumnach w testowej ramce danych.
+
+```{r}
+pred_1 <- predict(model_1, testing_data)
+testing_data$pred_1 <- pred_1
+
+for (i in 1:nrow(testing_data)){
+  if (testing_data$pred_1[i] > 0.5) {
+    testing_data$will_win_1[i] <- 1
+  }
+  else{
+    testing_data$will_win_1[i] <- 0
+  }
+} 
+
+pred_2 <- predict(model_2, testing_data)
+testing_data$pred_2 <- pred_2
+
+for (i in 1:nrow(testing_data)){
+  if (testing_data$pred_2[i] > 0.5) {
+    testing_data$will_win_2[i] <- 1
+  }
+  else{
+    testing_data$will_win_2[i] <- 0
+  }
+} 
+
+##pred_3 <- predict(model_3, testing_data)
+##testing_data$pred_3 <- pred_3
+
+##for (i in 1:nrow(testing_data)){
+##  if (testing_data$pred_3[i] > 0.5) {
+##    testing_data$will_win_3[i] <- 1
+##  }
+##  else{
+##    testing_data$will_win_3[i] <- 0
+##  }
+##} 
+```
+
+Zadanie 3. Sprawdź dokładność predykcji (utwórz tabele liczności porównującą dane rzeczywiste z przewidywanymi przez model). Jaki procent danych został poprawnie zaklasyfikowany? Który model okazał się w tym przypadku najlepszy? 
+
+```{r}
+confusion_matrix_1 <- table(testing_data$Start_Tech_Oscar,testing_data$will_win_1)
+confusion_matrix_1
+barplot(confusion_matrix_1)
+model_accuracy_1 <- sum(confusion_matrix_1[1,1],confusion_matrix_1[2,2])/sum(confusion_matrix_1[1,1],confusion_matrix_1[2,1],confusion_matrix_1[1,2],confusion_matrix_1[2,2])
+model_accuracy_1
+###########################################
+confusion_matrix_2 <- table(testing_data$Start_Tech_Oscar,testing_data$will_win_2)
+confusion_matrix_2
+barplot(confusion_matrix_2)
+model_accuracy_2 <- sum(confusion_matrix_2[1,1],confusion_matrix_2[2,2])/sum(confusion_matrix_2[1,1],confusion_matrix_2[2,1],confusion_matrix_2[1,2],confusion_matrix_2[2,2])
+model_accuracy_2
+###########################################
+##confusion_matrix_3 <- table(testing_data$Start_Tech_Oscar,testing_data$will_win_3)
+##confusion_matrix_3
+##barplot(confusion_matrix_3)
+##model_accuracy_3 <- sum(confusion_matrix_3[1,1],confusion_matrix_3[2,2])/sum(confusion_matrix_3[1,1],confusion_matrix_3[2,1],confusion_matrix_3[1,2],confusion_matrix_3[2,2])
+##model_accuracy_3
+```
+
+Note: Z seedem = 312 minimalnie lepszy okazuje sie byc algorytm baggingu wynikiem pred_1 = 0.6578 do pred_2 = 0.6513, czyli 65,78% do 65,13%.

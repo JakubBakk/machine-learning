@@ -1,0 +1,81 @@
+---
+title: "bak_lab4"
+author: "Jakub Bąk"
+date: "08 11 2020"
+output: html_document
+---
+
+Zadania na czwarte laboratorium
+===============================
+
+Zadanie 1: Pobierz i wczytaj w R Studio dane załączone do tego zadania. Zawierają one informacje na temat matek i ich dzieci, u których wykryto pewną rzadko występującą wadę wrodzoną (grupa badana) lub zdrowych (grupa kontrolna).
+
+```{r}
+dane <- read.csv("./data/lab4-dane.csv", sep=";", header=TRUE, nrow=1768, dec = ".", na.strings = " ")
+
+```
+##Note: W pliku z zadaniem należalo dodatkowo zmienic przecinki na kropki w zmiennej MasaUr, inaczej Rstudio nie rozpoznawalo danych i traktowalo je jako character zamiast numeric, co uniemozliwialo narysowanie wykresu
+
+Zadanie 2: Wyczyść dane (braki danych usuń przypadkami)
+
+```{r}
+dane <- dane[complete.cases(dane),]
+```
+
+Zadanie 3: Wyświetl podstawowe statystyki opisowe dla analizowanych zmiennych, narysuj i oceń histogramy dla zmiennych Wiek oraz MasaUr.
+
+```{r}
+summary(dane)
+library(dplyr)
+hist(dane$Wiek.M, breaks=10, ylab="Ilosc", xlab="Wiek")
+dane$MasaUr <- as.numeric(dane$MasaUr)
+hist(dane$MasaUr, breaks=10, ylab="Ilosc", xlab="MasaUr")
+```
+
+Ocena histogramów:
+
+- Histogram Wiek Matki: Na wykresie możemy zobaczyc, ze wiekszosc matek podczas rodzenia byla najczesciej w wieku od 25 do 30 lat. Mozemy zobaczyc rowniez, ze w danych znajduja sie dwie wartosci -1, ktore sa najpewniej bledem w danych, w nastepnej czesci usunalem je i zastapilem srednia wartoscia 
+- Histogram Masa Urodzenia: Wiekszosc rodzacych sie dzieci mialo wage z przedzialu 3 do 4 kg, co jest prawidlowa waga dla 
+dopiero co urodzonego dziecka. W tym wypadku skrajnosci z lewej strony, tzn. wagi od 0 do 2 kg wynikaja prawdopodobnie z tego,
+ze dzieci te byly urodzone jako wczesniaki
+
+
+Zadanie 4: Utwórz model regresji logistycznej, a następnie sprawdź które zmienne mają istotny wpływ na występowanie wady u dziecka.
+
+```{r}
+mean_Wiek.m <- mean(dane$Wiek.M)
+dane$Wiek.M[dane$Wiek.M<= 0] <- mean_Wiek.m 
+
+library(dummies)
+df <- dummy.data.frame(dane, names=c("ď.żGrupa"))
+df <- df[,-2]
+
+glm.fit = glm(ď.żGrupabadana~., data = df, family = binomial)
+summary(glm.fit)
+```
+##Note: Zmienna grupa kontrolna nalezy zmienic za pomoca funkcji dummy w faktor, co posluzy nam potem do analizy logistycznej
+
+Zmienne majace wplyw na wystepowanie wady u dziecka: Plec, Masa Urodzenia, Kolejna Ciaza, Przebyte infekcje oddechowe, Palenie oraz Wyksztalcenie Matki. Zmienna Wsrednie postanowilem pominac ze wzgledu na jego dosc male znaczenie.
+
+Zadanie 5: Zbadaj współliniowość zmiennych z modelu końcowego
+
+```{r}
+model_koncowy <- glm(formula=ď.żGrupabadana~Plec+MasaUr+KolCiazy+InfOddech+Palenie+WyksztM, data=df, family=binomial)
+summary(model_koncowy)
+step(model_koncowy, direction = "backward")
+
+library(car)
+vif(model_koncowy)
+```
+
+Zadanie 6: Wykonaj analizę modelu końcowego za pomocą szans.
+
+```{r}
+exp(coef(model_koncowy))
+```
+
+Czego mozemy dowiedziec sie z analizy modelu koncowego:
+
+- Zmienne InfOddech oraz Palenie maja najwiekszy wplyw na wade u dziecka. W przypadku gdy matka jest osoba palaca, ma ona ponad 335% wieksza szanse na urodzenie dziecka chorego niz matka niepalaca. Podobnie to wyglada w przypadku gdy matka miala przebyta infekcje oddechowa
+- Plec rowniez ma wplyw na chorobe, w przypadku gdy urodzenia sie chlopaka szansa na chorobe przewlekla wzrasta o okolo 60%
+- Zmienne pozytywnie wplywajace na wystepowanie choroby u dziecka to Masa Urodzenia oraz Wyksztalcenie Matki. Kazde 0,5 kg u urodzonego dziecka zmniejsza szanse na chorobe o 27%. W przypadku wyksztalcenia matki kazdy ukonczony etap edukacji zmniejsza ta szanse o 24%

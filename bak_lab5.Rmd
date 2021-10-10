@@ -1,0 +1,81 @@
+---
+title: "bak_lab5"
+author: "Jakub Bąk"
+date: "22 11 2020"
+output: html_document
+---
+
+Zadania na piate laboratorium
+=============================
+
+Zadanie 1: Pobierz i wczytaj w RStudio plik z danymi Movie_classification.csv. Celem zadania jest przewidzenie, czy dany film otrzyma Oskara czy też nie (zmienna dychotomiczna Start_Tech_Oskar).
+
+```{r}
+drzewo <- read.csv("./data/Movie_classification.csv", sep=",", header=TRUE, nrow=510, dec = ".", na.strings = " ")
+```
+
+Zadanie 2: Przyglądnij się danym i przygotuj je do dalszej analizy
+
+```{r}
+drzewo$X3D_available <- as.factor(drzewo$X3D_available)
+drzewo$Genre <- as.factor(drzewo$Genre)
+library(dplyr)
+
+drzewo %>%
+  filter(!complete.cases(drzewo))
+
+mean_Time_taken <- mean(drzewo$Time_taken, na.rm=TRUE)
+drzewo$Time_taken[is.na(drzewo$Time_taken)] <- mean_Time_taken
+
+library(dummies)
+new_drzewo <- dummy.data.frame(drzewo, names=c("X3D_available","Genre"))
+```
+
+Note: Zmienne "X3D_available" oraz "Genre" należy najpierw zmienic w typ faktor, aby móc dalej na nich pracowac, a nastepnie zamienic je za pomoca funkcji dummy w dane, na ktorych mozna predyktowac. Dodatkowo niekompletne dane sa filtrowane, aby zobaczyc automatycznie ktore dane sa niekompletne, a nastepnie w nich brakujace wartosci sa zastepowane wartosciami srednimi
+
+Zadanie 3: Utwórz model drzewa klasyfikacyjnego na danych treningowych
+
+```{r}
+library(caTools)
+drzewo_split <- sample.split(new_drzewo, SplitRatio = 2/3)
+training_data <- subset(new_drzewo, drzewo_split == TRUE)
+testing_data <- subset(new_drzewo, drzewo_split == FALSE)
+
+library(rpart)
+model <- rpart(training_data$Start_Tech_Oscar~., data=training_data, subset = c(sample(1:330, 330)))
+```
+
+Zadanie 4: Przedstaw graficznie utworzone drzewo (np. użyj funkcji rpart.plot)
+
+```{r}
+library(maptree)
+draw.tree(model, cex=0.7, nodeinfo=TRUE)
+```
+
+Zadanie 5: Sprawdź działanie modelu na danych testowych. Wyniki predykcji zapisz w kolumnie pred w testowej ramce danych.
+
+```{r}
+pred <- predict(model, testing_data)
+testing_data$pred <- pred
+```
+
+Zadanie 6: Sprawdź dokładność predykcji (utwórz tabelę liczności porównującą dane rzeczywiste z przewidywanymi przez model). Jaki procent danych został poprawnie zaklasyfikowany?
+
+```{r}
+for (i in 1:nrow(testing_data)){
+  if (testing_data$pred[i] > 0.5) {
+    testing_data$will_win[i] <- 1
+  }
+  else{
+    testing_data$will_win[i] <- 0
+  }
+} 
+
+confusion_matrix <- table(testing_data$Start_Tech_Oscar,testing_data$will_win)
+confusion_matrix
+barplot(confusion_matrix)
+model_accuracy <- sum(confusion_matrix[1,1],confusion_matrix[2,2])/sum(confusion_matrix[1,1],confusion_matrix[2,1],confusion_matrix[1,2],confusion_matrix[2,2])
+model_accuracy*100
+```
+
+Note: W celu sprawdzenia dokladnosci predykcji wprowadzam zmienna "will_win", ktora dla wartosci pred > 0.5 otrzymuje wartosc 1, a ponizej otrzymuje wartosc 0. Nastepnie tworze tabele licznosci, z ktorej nastepnie licze dokladnosc predykcji

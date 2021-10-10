@@ -1,0 +1,111 @@
+---
+title: "bak_lab13"
+author: "Jakub Bąk"
+date: "27 01 2021"
+output: html_document
+---
+
+Analiza danych "diabetes" z pakietu mclust
+==========================================
+
+Celem moich badań jest stworzenie modelu rozponajacego stan danej osoby(zdrowa, ktory rodzaj cukrzycy) na podstawie 3 wskaznikow: poziomu glukozy, poziomu insuliny oraz sspg. W tym celu najpierw wstepnie przetworze i uporzadkuje dane, a nastepnie skorzystam z modelu maszyny wektorow nosnych w roznych konfiguracjach, aby sprawdzic ktory model bedzie sie najlepiej sprawowal w zadaniu. Jego ocena bedzie polegala na stworzeniu tablicy pomylek i policzeniu precyzji modelu.
+
+
+1. Uporzadkowanie i przetworzenie danych
+
+```{r}
+library(mclust)
+diabetes_data <- diabetes
+#is.na.data.frame(diabetes_data) #Do sprawdzenia czy zbior danych zawiera wartosci puste
+plot(diabetes_data$class)
+summary(diabetes_data)
+```
+
+Na poczatku sprawdzam czy zbior danych nie zawiera brakujacych wartosci. W przypadku danych "diabetes" nie bylo takich instancji. Nastepnie narysowalem i sprawdzilem rozklad zmiennej "class", aby sprawdzic procentowy udzial kazdej kategorii w klasie, ale takze by sprawdzic czy ktores dane nie zostaly nieprawidlowo napisane(np. literowka), przez co model niepoprawnie by je klasyfikowal. Na samym koncu sprawdzam za pomoca "summary" czy ktores dane nie wykraczaja poza norme i nie wymagaja korekty. W tym wypadku w kolumnie "insulin" jedna wartosc byla podejrzanie niska, dlatego tez narysowalem histogram, aby zobaczyc rozklad danych
+
+```{r}
+hist(diabetes_data$insulin)
+mean_chemical <- mean(diabetes_data$insulin)
+diabetes_data$insulin[diabetes_data$insulin < 100] <- mean_chemical
+```
+
+Tak jak podejrzewalem, jedna dana miala zaskakujaca niska wartosc ~45, ktora znaczaco sie roznila od reszty danych. Dodatkowo dana ta byla dla osoby zaliczanej jako "chemical", co tym bardziej potwierdzilo, ze jest ona nieprawidlowa. W tym wypadku zastapilem ja srednia wartoscia dla kolumny insulin, poniewaz byla ona na tyle wysoka, aby pasowala do profilu osoby "chemical"
+
+
+2. Podzial danych na zbiory treningowe i testowe
+
+```{r}
+library(caTools)
+library(dplyr)
+set.seed(52)
+diabetes_split <- sample.split(diabetes_data$class, SplitRatio = 0.7)
+training_data <- subset(diabetes_data, diabetes_split == TRUE)
+testing_data <- subset(diabetes_data, diabetes_split == FALSE)
+
+```
+
+W tym kroku podzielilem moj zbior danych na zbior treningowy oraz testowy w stosunku 70% danych treningowych i 30% danych testowych. Dodatkowo ustawilem losowego seeda, aby te same zestawy danych mozna bylo testowac na roznych modelach i w sposob uprawniony porownywac ich precyzje(poniewaz bede korzystac z tablicy pomylek w celu oceny modelu) i inne wskazniki. Biblioteka dplyr jest uzyta do paru funkcji: 
+"sample" oraz "subset" do podzialu danych, a takze do funkcji "tune", potrzebnej do tworzenia modelu.
+
+
+3.Budowa modelu
+Zdecydowalem sie na wykorzystanie SVM, czyli Maszyny wektorow nosnych. Moj zbior danych jest dosyc maly, wiec SVM bedzie dobrze sobie z nim radzil. Nie bedzie on musial dlugo tworzyc modeli, co jest jedna z jego najwiekszych wad. Zapewnia on rowniez jedne z najwiekszych precyzji z roznych modeli.
+
+- SVM liniowy
+```{r}
+library(e1071)
+library(caret)
+tune.out_linear <- tune(svm, class~., data=training_data, kernel="linear", ranges=list(cost=c(0.001, 0.01, 0.1, 1, 10, 100)), cross=4)
+summary(tune.out_linear$best.model) 
+```
+
+Na poczatku bede szukal najlepszego modelu liniowego SVM. W tym celu korzystam z dwoch bibliotek: e1071 oraz caret. Pierwsza z nich pozwala na wykorzystanie svm, podczas gdy "caret" bedzie wykorzystana do stworzenia tablicy pomylek. Dodatkowo ze wzgledu na mala ilosc danych korzystam z walidacji krzyżowej, aby zapobiec overfittingowi. W tym wypadku najlepszym modelem okazal sie ten o koszcie = 10, ktory na danych treningowych osiaga precyzje rowna 98%, co jest bardzo wysokim wynikiem.
+
+```{r}
+pred_svm_linear <- predict(tune.out_linear$best.model, testing_data)
+testing_data$pred_svm_linear <- pred_svm_linear
+confusionMatrix(testing_data$class, testing_data$pred_svm_linear)
+```
+
+Nastepnie model linearny przewiduje wyniki dla zbioru danych testowych, by nastepnie stworzyc z niego tablice pomylek oraz policzyc precyzje, ktora bedzie miernikiem jakosci modelu. W tym wypadku precyzja jest rowna 0.8864, co jest dobrym wynikiem dla modelu. 
+
+
+-SVM wielomianowy
+
+```{r}
+tune.out_polynomial <- tune(svm, class~., data=training_data, kernel="polynomial", ranges=list(cost=c(0.001, 0.01, 0.1, 1, 10, 100), degree=c(0.5,1,2,3,4,5)), cross=4)
+summary(tune.out_polynomial$best.model)
+```
+
+W przypadku SVM wielomianowego najlepszy okazal sie model o koszcie = 10 i stopniu rownym = 1. Warto tutaj zaznaczyc, ze ten model potrzebowal nieco wiecej czasu na przetworzenie danych.
+
+```{r}
+pred_svm_polynomial <- predict(tune.out_polynomial$best.model, testing_data)
+testing_data$pred_svm_polynomial <- pred_svm_polynomial
+confusionMatrix(testing_data$class, testing_data$pred_svm_polynomial)
+```
+
+Precyzja dla SVM wielomianowego wynosi = 0.8636, co jest wynikiem gorszym od poprzedniego modelu. 
+
+
+-SVM promieniowy("radial")
+
+```{r}
+tune.out_radial <- tune(svm, class~., data=training_data, kernel="radial", ranges=list(cost=c(0.001,0.01,0.1,1,10,100),gamma=c(0.01,0.1,0.5,1,2,3,4,5,10,50)),cross=4)
+summary(tune.out_radial$best.model)
+```
+
+Dla modelu promieniowego najlepszy okazal sie model o koszcie 10. Ten model zajal rowniez najwiecej czasu na przetworzenie
+
+```{r}
+pred_svm_radial <- predict(tune.out_radial$best.model, testing_data)
+testing_data$pred_svm_radial <- pred_svm_radial
+confusionMatrix(testing_data$class, testing_data$pred_svm_radial)
+```
+
+Co interesujace, precyzja ostatniego modelu jest rowniez rowna = 0.8864, ten sam wynik co model linearny. Trzeba jednak pamietac, ze jest to model najdluzej sie ladujacy, co przy wiekszej ilosci danych ma kolosalne znaczenie
+
+
+WNIOSEK:
+
+- Najlepszym modelem okazal sie model linearny z kosztem = 10. O ile jego precyzja jest rowna modelowi promieniowemu, to na jego korzysc przemawia duzo szybszy czas przetwarzania. W przypadku danych o ~150 rekordach nie robi to az tak duzej roznicy, jednak dla wiekszych zbiorów danych, takich po kilka, kilkanascie tysiecy rekordow, moze to zrobic bardzo duza roznice. Dlatego tez model linearny jest w tym wypadku najlepszy

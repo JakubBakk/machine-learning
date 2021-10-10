@@ -1,0 +1,65 @@
+---
+title: "bąk_lab1"
+author: "Jakub Bąk"
+date: "18 10 2020"
+output: html_document
+---
+
+Zadania na pierwsze laboratorium
+================================
+
+## Zadanie 1: Pobierz raport miesieczny z wybranej stacji pomiarowej ze strony 
+[Stacja pomiarowa w Zakopanem](http://monitoring.krakow.pios.gov.pl/dane-pomiarowe/automatyczne/stacja/9/parametry/2061-76-79-81-78-75-74-77/miesieczny/09.2020)
+
+- Note: Stacja w Zakopanem nie zawierala informacji o pyle zawieszonym PM2.5, dlatego zadanie 4 wyliczylem
+dla zmiennej PM10.
+
+## Zadanie 2: Wczytaj dane pomiarowe(pamietaj o seperatorach i brakach danych)
+
+```{r}
+data <- read.csv("./data/Zakopane_09.2020.csv", sep=";", header=TRUE, nrow= 30, dec = ",", na.strings = "-")
+names(data) <- c("day.month","SO2","NO2","NOx","NO","03","03.8h","CO","CO.8h","C6H6","PM10")
+data <- data[-10]
+
+```
+
+- Kolumna "C6H6" nie zawierala zadnych danych, dlatego w ostatniej linijce usunalem ja w ramach czyszczenia danych.
+
+## Zadanie 3: Dodaj do danych nową kolumnę, w której zapiszesz datę każdego z pomiarów, wykorzystując dane z kolumny 1. Wykorzystaj funkcję as.Date()
+
+```{r}
+for(i in 1:nrow(data)) {
+  tmp <- strsplit(data[i,"day.month"],"\\.")[[1]]
+  data[i,"day"] <- tmp[1]
+  data[i,"month"] <- tmp[2]
+}
+
+data["year"] <- 2020
+data <- data[,-1]
+data$date <- as.Date(paste(data$year, data$month, data$day, sep="- "))
+data <- data[,-(10:12)]
+```
+
+- Na poczatku nalezy rozdzielic kolumne "day.month" na podkolumny. 
+- Robimy to za pomoca funkcji "strsplit". Nastepnie tworzymy dodatkowa kolumne "year", a nastepnie wszystkie 3 kolumny laczy w jedna za pomoca funkcji "as.Date()". 
+- Na koncu usuwamy zbedne kolumny z dniem, miesiacem oraz rokiem.
+
+## Zadanie 4: Oblicz średnią dla zmiennej PM2.5 (pył zawieszony PM 2.5) wyłącznie z danych pomiarowych z jednego dnia tygodnia. Wykorzystaj funkcję weekdays()
+
+```{r}
+library(dplyr)
+library(magrittr)
+
+data %>%
+  mutate(weekday=weekdays(date)) %>%
+  filter(weekday == "wtorek") %>%
+  group_by(weekday) %>%
+  summarize(PM10 = mean(PM10)) %>%
+  arrange(PM10)
+```
+
+- Na poczatku wgrywamy biblioteki "dplyr" praz "magrittr", ktore odpowiadaja za pipe operator "%>%", za pomoca ktorego mozemy zmienic odpowiednio nasze dane. 
+- Pierwsze co robimy to za pomoca funkcji "weekdays()" otrzymujemy nazwy poszczegolnych dni tygodnia. 
+- Nastepnie za pomoca funkcji "filter" wybieramy jeden z dni tygodnia, w moim przypadku jest to "wtorek". 
+- Funkcja "group_by" pozwala na zgrupowanie danych ze wzgledu na wybrana przez nas ceche, w tym wypadku dzien tygodnia. 
+- Potem dzieki "summarize" mozemy policzyc srednia wartosc zmiennej "PM10", a na koncu "arrange" pozwala na zobaczenie   wyliczonej przez nas sredniej. 

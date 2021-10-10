@@ -1,0 +1,104 @@
+---
+title: "bak_lab12"
+author: "Jakub Bąk"
+date: "24 01 2021"
+output: html_document
+---
+
+Zadania na 12 laboratorium: Analiza szeregów czasowych
+======================================================
+
+Wczytanie danych i ich wyswietlenie
+
+```{r}
+library("astsa")
+flu_dane <- flu
+par(mar=c(4,4,1,1)+0.1, mgp=c(3,0.6,0),las=1)
+plot(flu_dane,type="l",col="SteelBlue")
+```
+
+Z biblioteki "astsa" wykorzystujemy biblioteke "Flu", ktora opisuje ilosci smierci z powodu grypy oraz zapalenia pluc na 10 tys osob w Stanach Zjednoczonych od 1968 do 1978. Naszym zadaniem jest sprawdzenie czy wystepuje jakis trend oraz wahania sezonowe, a takze proba predykcji wynikow na przyszle lata, w moim wypadku na rok 1980. Na poczatku wgrywamy dane, a nastepnie rysujemy wykres "flu". Mozemy na pierwszy rzut oka zobaczyc, ze wahania sezonowe sa bardzo widoczne. W szczegolnosci zachorowania w okolicach stycznia, czyli zimy byly najwyzsze, podczas gdy zachorowania w srodku lata byly najmniejsze.
+
+Przyklady szeregow
+
+```{r}
+par(mfcol=c(1,2),mar=c(4,4,1,1)+0.1, mgp=c(3,0.6,0),las=1)
+plot(log(flu_dane),col="SteelBlue"); title("addytywny")
+plot(flu_dane,col="SteelBlue"); title("multiplikatywwny")
+```
+
+Na poczatku narysowalem przykladowe szeregi czasowe, pokazujace trend. Jak mozemy zobaczyc, istnieje on w pewnej formie, ale zeby sie upewnic, nalezy usunac tendencje rozwojowa z procesu, co bedzie wykonane w nastepnej czesci.
+
+Jednokrotne roznicowanie szeregow czasowych
+
+```{r}
+par(mfcol=c(1,2),mar=c(4,4,1,1)+0.1, mgp=c(3,0.6,0),las=1)
+plot(diff(log(flu_dane)),col="SteelBlue"); title("addytywny")
+plot(diff(flu_dane),col="SteelBlue"); title("multiplikatywwny")
+```
+
+Jednokrotne roznicowanie zdecydowanie pokazuje, ze istnieja bardzo duze wahania sezonowe, jednakze sam trend nie jest do konca widoczny,
+
+Dwukrotne roznicowanie szeregow czasowych
+
+```{r}
+par(mfcol=c(1,2),mar=c(4,4,1,1)+0.1, mgp=c(3,0.6,0),las=1)
+plot(diff(log(flu_dane), lag=1, differences = 2),col="SteelBlue"); title("addytywny")
+plot(diff(flu_dane, lag=1, differences = 2),col="SteelBlue"); title("multiplikatywwny")
+```
+
+Dwukrotne roznicowanie zdecydowanie uwydatnia sezonowosc, gdzie w styczniu kazdego roku nastepuje bardzo duzy wzrost smierci z wyzej podanych przyczyn.
+
+Filtr Hodricka-Presscota oraz Cyclical component
+
+```{r}
+library(FRAPO)
+f <- FRAPO::trdhp(flu_dane, lambda=14400)
+
+par(mfcol=c(2,1),mar=c(4,4,1,1)+0.1, mgp=c(3,0.6,0),las=1)
+plot(flu_dane,col="SteelBlue",
+     main="Hodrick-Prescott filter")
+
+lines(f,col="YellowGreen")
+plot(flu_dane-f,col="SteelBlue",
+     main="Cyclical component (deviations from trend)")
+```
+
+Za pomoca filtru Hodricka-Prescotta mozemy oczyscic dane  z wahan periodycznych. Pozwala to nam w tym wypadku zobaczyc pewien malejacy trend, ktory normalnie nie bylby widoczny z tak mocnymi zmianami sezonowymi. Oznacza to tyle, ze opieka zdrowotna w tym okresie poprawila sie, co pomoglo w zmniejszeniu ilosci smierci, a takze lekkim zmniejszeniu wahan sezonowych z roku na rok.
+
+Funkcja autokorelacji ACF
+
+```{r}
+library(forecast)
+forecast::tsdisplay(flu_dane,col=2,lwd=2,las=1)
+forecast::tsdisplay(diff(flu_dane),col=2,lwd=2,las=1)
+plot(stl(flu_dane,s.window="periodic"),col=2,lwd=2)
+```
+
+Funkcja autokorelacji ACF sluzy do identyfikacji skladowych szeregu czasowego( w tym trendu oraz sezonowosci). Funkcje ACF oraz PACF mozemy zobaczyc na samym poczatku. Funkcja autokorelacji nieznacznie zmniejsza sie ze wzrostem parametru, co moze wskazywac na wystepowanie trendu, choc przy takich dosyc malych roznicach moze byc to rownie dobrze blad w danych lub w przewidywaniu. Po usunieciu trendu mozemy bardzo wyraznie zobaczyc wahania sezonowe, ktore rowniez wczesniej byly mocno zaakcentowane w przypadku poprzednich wykresow. Na koncu funkcja "stl" potwierdza jednak zarowno wahania sezonowe(wczesniej juz udowodnione), ale rowniez trend, ktory jest mniej oczywisty, ale jednak wystepujacy(ze sporymi wahaniami)
+
+Modele autoregresyjne ARIMA
+
+```{r}
+m <- forecast::auto.arima(flu_dane,d=1)
+summary(m)
+r <- resid(m)
+p <- sapply(1:10,function(i) Box.test(r, i, type = "Ljung-Box")$p.value)
+p
+par(mar=c(4,4,1,1)+0.1, mgp=c(3,0.6,0),las=1)
+tsdiag(m)
+forecast::forecast(m,h=12)
+par(mar=c(4,4,1,1)+0.1, mgp=c(3,0.6,0),las=1)
+```
+
+Zastosowany tutaj model ARIMA rowniez sluzy do analizy szeregow czasowych, a konkretnie tych stacjonarnych. W przypadku gdy nie jest stacjonarny, nalezy go odpowiedno przeksztalcic. Funkcja "auto.arima" robi to automatycznie. Na podstawie testu Ljunga-Boxa mozemy potwierdzic hipoteze zakladajaca autokorelacje niezerowa.
+
+Prognozowanie na rok 1980
+
+```{r}
+plot(forecast::forecast(m,h=12))
+p <- predict(m,n.ahead=12)
+ts( cbind(pred=p$pred, se=p$se, error=p$se/p$pred), start=c(1979,1),freq=12)
+```
+
+Na samym koncu za pomoca funkcji "forecast" mozna tworzyc prognozy na podstawie modelu. W moim przypadku zdecydowalem sie na rok 1979. Po zastosowaniu funkcji mozemy zobaczyc na wykresie oraz w zwyklych danych jakie sa przewidywania modelu oraz jaki jest blad modelu. Najlepsze predykcje przypadaja na poczatek roku, podczas gdy najgorsze przewidywania sa mniej wiecej w srodku roku. Model zdecydowanie mniej sie myli kiedy ma do czynienia z wahaniami sezonowymi, podczas gdy okresy "spokoju" sa dla niego bardziej klopotliwe i ma mniejsze pojecie o tym jak sobie z nimi poradzic. 

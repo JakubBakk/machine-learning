@@ -1,0 +1,75 @@
+---
+title: "bak_lab3"
+author: "Jakub Bąk"
+date: "2 11 2020"
+output: html_document
+---
+
+Zadania na trzecie laboratorium
+===============================
+
+Zadanie 1: Dane z pierwszej części ćwiczeń ogranicz do trzech zmiennych: PM25, NO2, PM10 (utwórz nową ramkę danych). Następnie usuń wiersze z brakującymi danymi.
+
+```{r}
+dane <- dget("./data/dane_pomiarowe2019_al_krasinskiego")
+
+data_1 <- dane[, c("NO2", "PM10", "PM25")]
+
+x1 <-data_1$NO2
+y1 <-data_1$PM10
+z1 <-data_1$PM25
+
+good_1 <-complete.cases(x1,y1,z1)
+
+x1 <- x1[good_1]
+y1 <- y1[good_1]
+z1 <- z1[good_1]
+```
+
+Zadanie 2: Oblicz współczynnik korelacji dla par zmiennych: PM25~NO2, PM25~PM10 oraz NO2~PM10.
+
+```{r}
+cor(x1,y1)
+cor(x1,z1)
+cor(y1,z1)
+```
+
+Zadanie 3: Wyznacz model regresji liniowej dla najlepiej skorelowanych danych. Zwróć uwagę na kolejność - zmienną z wybranej pary znajdującą się na pierwszymi miejscu umieść na osi y.
+
+```{r}
+library(ggplot2)
+
+df <- data.frame(y1,z1)
+ggplot(data=df) + geom_point(aes(y1,z1))
+
+model <- lm(y1~z1)
+model$coefficients["z1"]
+```
+
+Zadanie 4: Narysuj wykres rozrzutu dla wybranych zmiennych. Nanieś na niego linię regresji.
+
+```{r}
+p1 <- ggplot(data=df) + geom_point(aes(y1,z1))
+p1 + geom_smooth(aes(y1,z1), method = "lm", se = TRUE)
+```
+
+Zadanie 5: Oblicz sumę kwadratów pionowych odchyleń punktów od prostej y = ax + b dla wyznaczonych argumentów a oraz b.
+
+```{r}
+a <- 1.36977
+b <- 9.65667
+
+z1mean <- mean(z1)
+y1mean <- mean(y1)
+z1 <- z1 - z1mean
+y1 <- y1 - y1mean
+
+sum_of_the_squared <- function(z1,y1,a,b){
+  sum <- 0
+  for(i in seq_along(z1)){
+    sum <- sum + (z1[i] - (a*y1[i]+b))^2
+  }
+  sum
+}
+```
+
